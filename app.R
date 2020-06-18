@@ -59,8 +59,7 @@ server <- function(input, output, session) {
                                            choices = ""),
                     ),
                     mainPanel(
-                        plotlyOutput('chart'),
-                        dataTableOutput('table')
+                        plotlyOutput('chart')
                     )
                 )  
             )})
@@ -105,7 +104,7 @@ server <- function(input, output, session) {
     
     df_filt <- reactive({df_long2() %>% 
         filter(name %in% df_types_sel() ) %>% 
-        mutate(value = ifelse(name != "Perc discrepancy",
+        mutate(value = ifelse(name != "PERCENT_DISCREPANCY",
                               value * as.numeric(input$radio_unit),
                               value))})
     
@@ -147,12 +146,7 @@ server <- function(input, output, session) {
     
     ###########
     #oputputs
-    output$table <- renderDataTable({
-        req(input$file1)
-        df_filt()})
-   
-     
-  
+
       output$chart <- renderPlotly({
           req(input$file1)
           if(length(df_types_sel()) == 1){
