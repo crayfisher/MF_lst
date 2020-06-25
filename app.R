@@ -59,15 +59,29 @@ server <- function(input, output, session) {
                                            choices = ""),
                     ),
                     mainPanel(
-                        plotlyOutput('chart')
+                        plotlyOutput('chart'),
+                        downloadButton("download_data", label = "Download Data"),
+                        radioButtons("radio_download_long_wide", label = h4("Data format"),
+                                     choices = list("Long format" = 1, "Wide Format (for excel etc)" = 2), 
+                                     selected = 1,
+                                     inline = T),
+                        radioButtons("radio_download_what", label = h4("Which data"),
+                                     choices = list("All Data" = 1, "Selected Data" = 2), 
+                                     selected = 2,
+                                     inline = T),
+                        conditionalPanel(condition = "input.radio_download_what == 1",
+                                         radioButtons("radio_download_unit", label = h4("Which units"),
+                                                      choices = list("original units" = 1, "selected Units" = 2), 
+                                                      selected = 2,
+                                                      inline = T))
                     )
                 )  
             )})
     
     
-    output$value <- renderPrint({
-        str(input_files())
-    })
+    # output$value <- renderPrint({
+    #     str(input_files())
+    # })
     
     #######
     #prepare data
@@ -107,6 +121,29 @@ server <- function(input, output, session) {
         mutate(value = ifelse(name != "PERCENT_DISCREPANCY",
                               value * as.numeric(input$radio_unit),
                               value))})
+    
+    df_print <- reactive({
+      if (input$radio_download_what == 1){
+        if(input$radio_download_unit == 1){
+          df_print <- df_long()
+        }else{
+          df_print <- df_long() %>% 
+            mutate(value = ifelse(name != "PERCENT_DISCREPANCY",
+                                  value * as.numeric(input$radio_unit),
+                                  value))
+        }
+        if(input$radio_download_long_wide == 2){
+          df_print <- df_print %>% pivot_wider()
+        }
+        
+      }else{
+        df_print <- df_filt()
+        if(input$radio_download_long_wide == 2){
+          df_print <- df_print %>% pivot_wider()
+        }
+      }
+      
+    })
     
     df_types <- reactive({df_long2() %>% 
             distinct(name) %>% 
@@ -160,7 +197,14 @@ server <- function(input, output, session) {
               }
           ggplotly(chart)
       })
-  
+    output$download_data <- downloadHandler(
+      filename = function() {
+        paste("data-", Sys.Date(), ".csv", sep="")
+      },
+      content = function(file) {
+        write_excel_csv(df_print(), file)
+      }
+    )
 
 
 }
