@@ -7,10 +7,22 @@
 #    http://shiny.rstudio.com/
 #
 
+
+library(reticulate)
+
+virtualenv_create(envname = "python_environment", python= "python3")
+virtualenv_remove(envname = "python_environment", packages = "pip")
+virtualenv_install("python_environment", packages = c('pip'))
+virtualenv_install("python_environment", packages = c('pandas', 'flopy'))
+reticulate::use_virtualenv("python_environment", required = TRUE)
+
+
 library(shiny)
 library(plotly)
 library(DT)
 library(tidyverse)
+
+
 source("scripts/flopy_r.R")
 # Define UI for application 
 #file size up to 1000MB
@@ -27,7 +39,7 @@ ui <- fluidPage(
 
 
 
-# Define server logic required to draw a histogram
+
 server <- function(input, output, session) {
     output$page_content <- renderUI({
             tagList(
@@ -195,7 +207,7 @@ server <- function(input, output, session) {
                 geom_line() +
                 facet_wrap(~file2,ncol =1)
               }
-          ggplotly(chart)
+          ggplotly(chart,dynamicTicks =T)
       })
     output$download_data <- downloadHandler(
       filename = function() {
