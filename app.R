@@ -10,11 +10,11 @@
 
 library(reticulate)
 
-virtualenv_create(envname = "python_environment", python= "python3")
-virtualenv_remove(envname = "python_environment", packages = "pip")
-virtualenv_install("python_environment", packages = c('pip'))
-virtualenv_install("python_environment", packages = c('pandas', 'flopy'))
-reticulate::use_virtualenv("python_environment", required = TRUE)
+# virtualenv_create(envname = "python_environment", python= "python3")
+# virtualenv_remove(envname = "python_environment", packages = "pip")
+# virtualenv_install("python_environment", packages = c('pip'))
+# virtualenv_install("python_environment", packages = c('pandas', 'flopy'))
+# reticulate::use_virtualenv("python_environment", required = TRUE)
 
 
 library(shiny)
@@ -46,6 +46,10 @@ server <- function(input, output, session) {
                 titlePanel("R GW chart"),
                 sidebarLayout(
                     sidebarPanel(
+                      radioButtons("include_zero", label = h5("Include zero?"),
+                                   choices = list("yes" = 1,
+                                                  "no" = 0), 
+                                   selected = 1),
                         radioButtons("radio", label = h3("Input type"),
                                      choices = list("Single file" = 1,
                                                     "Up to 3 files" = 2,
@@ -134,6 +138,11 @@ server <- function(input, output, session) {
                               value * as.numeric(input$radio_unit),
                               value))})
     
+    #attempting to set plot limits to include zero
+    #doesnt work for sime reason
+    ymax <- reactive({max(max(df_filt()$value),0)})
+    ymin <- reactive({min(min(df_filt()$value),0)})
+    
     df_print <- reactive({
       if (input$radio_download_what == 1){
         if(input$radio_download_unit == 1){
@@ -199,15 +208,40 @@ server <- function(input, output, session) {
       output$chart <- renderPlotly({
           req(input$file1)
           if(length(df_types_sel()) == 1){
+            if(input$include_zero == 1){
               chart <- df_filt() %>% 
-                  ggplot(aes(totim,value,col = file2)) +
-                  geom_line()}else{
-            chart <- df_filt() %>% 
+                ggplot(aes(totim,value,col = file2)) +
+                geom_line()+
+                scale_y_continuous(limits =c(ymin(),ymax()))+ 
+                expand_limits(y=0) #doesnt work for sime reason
+              ggplotly(chart)
+            }else{
+              chart <- df_filt() %>% 
+                ggplot(aes(totim,value,col = file2)) +
+                geom_line()+
+                scale_y_continuous(limits =c(ymin(),ymax()))
+              ggplotly(chart,dynamicTicks =T)
+            }
+            
+             
+                }else{
+            if(input$include_zero == 1){
+              chart <- df_filt() %>% 
+                ggplot(aes(totim,value,col = name)) +
+                geom_line() +
+                facet_wrap(~file2,ncol =1)+
+                expand_limits(y=0)
+              ggplotly(chart)
+            }else{
+              chart <- df_filt() %>% 
                 ggplot(aes(totim,value,col = name)) +
                 geom_line() +
                 facet_wrap(~file2,ncol =1)
+              ggplotly(chart,dynamicTicks =T)
+            }
+            
               }
-          ggplotly(chart,dynamicTicks =T)
+          
       })
     output$download_data <- downloadHandler(
       filename = function() {
