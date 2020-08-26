@@ -21,6 +21,7 @@ library(shiny)
 library(plotly)
 library(DT)
 library(tidyverse)
+library(lubridate)
 
 
 source("scripts/flopy_r.R")
@@ -37,45 +38,51 @@ ui <- fluidPage(
 )
 
 
-
-
-
 server <- function(input, output, session) {
     output$page_content <- renderUI({
             tagList(
                 titlePanel("R GW chart"),
                 sidebarLayout(
                     sidebarPanel(
-                      radioButtons("include_zero", label = h5("Include zero?"),
+                      radioButtons("include_zero", label = "Include zero?",
                                    choices = list("yes" = 1,
                                                   "no" = 0), 
                                    selected = 1),
-                        radioButtons("radio", label = h3("Input type"),
+                      radioButtons("radio", label = "Input type",
                                      choices = list("Single file" = 1,
                                                     "Up to 3 files" = 2,
                                                     "Upload file with addressess" = 3), 
                                      selected = 1),
-                        radioButtons("radio_unit", label = h3("units"),
+                      radioButtons("radio_unit", label = "units",
                                      choiceNames = c("m3/d","L/s","GL/a"),
                                      choiceValues	= c(1,0.011574074,0.0003650000), 
                                      selected = 1),
-                        fileInput("file1",
-                                  label = h3("File input")),
-                        fileInput("file2",
-                                  label = h3("File input")),
-                        fileInput("file3",
-                                  label = h3("File input")),
-                        checkboxGroupInput("terms_in",
-                                           label = h3("Terms IN"),
+                      radioButtons("radio_time_unit", label = "time units",
+                                   choiceNames = c("days","date"),
+                                   choiceValues	= c("days","date"), 
+                                   selected = "days"),
+                      dateInput(inputId = "start_date",
+                                label = "start time",
+                                value = "2019-06-01",
+                                weekstart = 1),
+                      fileInput("file1",
+                                  label = "File input"),
+                      fileInput("file2",
+                                  label = "File input"),
+                      fileInput("file3",
+                                  label = "File input"),
+                      checkboxGroupInput("terms_in",
+                                           label = "Terms IN",
                                            choices = ""),
-                        checkboxGroupInput("terms_out",
-                                           label = h3("Terms OUT")),
-                        checkboxGroupInput("terms_other",
-                                           label = h3("Terms other"),
+                      checkboxGroupInput("terms_out",
+                                           label = "Terms OUT"),
+                      checkboxGroupInput("terms_other",
+                                           label = "Terms other",
                                            choices = ""),
                     ),
                     mainPanel(
                         plotlyOutput('chart'),
+                        dataTableOutput("table"),
                         downloadButton("download_data", label = "Download Data"),
                         radioButtons("radio_download_long_wide", label = h4("Data format"),
                                      choices = list("Long format" = 1, "Wide Format (for excel etc)" = 2), 
@@ -136,12 +143,26 @@ server <- function(input, output, session) {
         filter(name %in% df_types_sel() ) %>% 
         mutate(value = ifelse(name != "PERCENT_DISCREPANCY",
                               value * as.numeric(input$radio_unit),
-                              value))})
-    
+                              value),
+               time_date = as_datetime(input$start_date + duration(totim,"days")))})
+
+    df_filt2 <- reactive({
+      if(input$radio_time_unit == "date"){
+        df_filt() %>% 
+          mutate(time2 = time_date )
+      }else{
+        df_filt() %>% 
+          mutate(time2 = totim )
+      }
+     
+        
+        
+      
+    })
     #attempting to set plot limits to include zero
     #doesnt work for sime reason
-    ymax <- reactive({max(max(df_filt()$value),0)})
-    ymin <- reactive({min(min(df_filt()$value),0)})
+    #ymax <- reactive({max(max(df_filt()$value),0)})
+    #ymin <- reactive({min(min(df_filt()$value),0)})
     
     df_print <- reactive({
       if (input$radio_download_what == 1){
@@ -204,37 +225,40 @@ server <- function(input, output, session) {
     
     ###########
     #oputputs
+    output$table <- renderDataTable({
+      df_filt()
+    })
 
       output$chart <- renderPlotly({
           req(input$file1)
           if(length(df_types_sel()) == 1){
             if(input$include_zero == 1){
-              chart <- df_filt() %>% 
-                ggplot(aes(totim,value,col = file2)) +
+              chart <- df_filt2() %>% 
+                ggplot(aes(time2,value,col = file2)) +
                 geom_line()+
-                scale_y_continuous(limits =c(ymin(),ymax()))+ 
-                expand_limits(y=0) #doesnt work for sime reason
+                #scale_y_continuous(limits =c(ymin(),ymax()))+ 
+                expand_limits(y=0) #
               ggplotly(chart)
             }else{
-              chart <- df_filt() %>% 
-                ggplot(aes(totim,value,col = file2)) +
-                geom_line()+
-                scale_y_continuous(limits =c(ymin(),ymax()))
+              chart <- df_filt2() %>% 
+                ggplot(aes(time2,value,col = file2)) +
+                geom_line()
+                #scale_y_continuous(limits =c(ymin(),ymax()))
               ggplotly(chart,dynamicTicks =T)
             }
             
              
                 }else{
             if(input$include_zero == 1){
-              chart <- df_filt() %>% 
-                ggplot(aes(totim,value,col = name)) +
+              chart <- df_filt2() %>% 
+                ggplot(aes(time2,value,col = name)) +
                 geom_line() +
                 facet_wrap(~file2,ncol =1)+
                 expand_limits(y=0)
               ggplotly(chart)
             }else{
-              chart <- df_filt() %>% 
-                ggplot(aes(totim,value,col = name)) +
+              chart <- df_filt2() %>% 
+                ggplot(aes(time2,value,col = name)) +
                 geom_line() +
                 facet_wrap(~file2,ncol =1)
               ggplotly(chart,dynamicTicks =T)
