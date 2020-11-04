@@ -5,7 +5,7 @@ library(lubridate)
 source_python("scripts/flopy_r.py")
 
 get_lst <- function(file)  {
-  df <- as_tibble(get_lst_py(file)) %>% 
+  df <- as_tibble(get_lst_incr_cum_py(file)) %>% 
     mutate(kstp = kstp + 1,
            kper = kper +1,
            time = parse_date_time(time,"ymd HMS"),

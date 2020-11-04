@@ -3,6 +3,7 @@ import numpy as np
 import flopy.utils.binaryfile as bf
 import pandas as pd
 
+#this function is retained fro backward compatibility. use get_lst_incr_cum_py instead to get both cumulative and incremental
 def get_lst_py(file):
   mf_list = flopy.utils.MfListBudget(file)
   
@@ -22,6 +23,32 @@ def get_lst_py(file):
 
   return(incrementaldf)
   
+def get_lst_incr_cum_py(file):
+  mf_list = flopy.utils.MfListBudget(file)
+  
+  kstpkper = mf_list.get_kstpkper()
+  kstpkper_df = pd.DataFrame(kstpkper)
+  kstpkper_df.columns = ['kstp','kper']
+  
+  times = mf_list.get_times()
+  times_df = pd.DataFrame(times)
+  times_df.columns = ['totim']
+ 
+  
+  incrementaldf, cumulativedf = mf_list.get_dataframes()
+  incrementaldf.reset_index(level=0, inplace=True)
+  incrementaldf = pd.concat([kstpkper_df,times_df,incrementaldf],axis=1)
+  incrementaldf.rename(columns={'index':'time'}, inplace=True)
+  incrementaldf["type_incr_cum"] = "incr"
+    
+  cumulativedf.reset_index(level=0, inplace=True)
+  cumulativedf = pd.concat([kstpkper_df,times_df,cumulativedf],axis=1)
+  cumulativedf.rename(columns={'index':'time'}, inplace=True)
+  cumulativedf["type_incr_cum"] = "cum"
+    
+  combineddf = pd.concat([incrementaldf,cumulativedf])
+
+  return(combineddf)
   
 def get_head(file,header = "HEADU"):
   hdobj = bf.HeadUFile(file,text = header)

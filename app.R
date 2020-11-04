@@ -1,10 +1,8 @@
 #
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
+# This is a shiny app for reading modflow listing files
+#created by Pawel Rakowski
+# sept 2020
+
 #
 
 
@@ -44,19 +42,27 @@ server <- function(input, output, session) {
                 titlePanel("R GW chart"),
                 sidebarLayout(
                     sidebarPanel(
+                      radioButtons("incr_cum", label = "Rate/Cumulative",
+                                   choices = list("Rate" = "incr",
+                                                  "Cumulative" = "cum"), 
+                                   selected = "incr"),
                       radioButtons("include_zero", label = "Include zero?",
                                    choices = list("yes" = 1,
                                                   "no" = 0), 
                                    selected = 1),
-                      radioButtons("radio", label = "Input type",
-                                     choices = list("Single file" = 1,
-                                                    "Up to 3 files" = 2,
-                                                    "Upload file with addressess" = 3), 
-                                     selected = 1),
+                      # radioButtons("radio", label = "Input type",
+                      #                choices = list("Single file" = 1,
+                      #                               "Up to 3 files" = 2,
+                      #                               "Upload file with addressess" = 3), 
+                      #                selected = 1),
                       radioButtons("radio_unit", label = "units",
                                      choiceNames = c("m3/d","L/s","GL/a"),
                                      choiceValues	= c(1,0.011574074,0.0003650000), 
                                      selected = 1),
+                      #multiplier
+                      numericInput("mult",
+                                   label = "Muliplier (e.g. cross-sectional models etc)",
+                                   value = 1),
                       radioButtons("radio_time_unit", label = "time units",
                                    choiceNames = c("days","date"),
                                    choiceValues	= c("days","date"), 
@@ -66,11 +72,17 @@ server <- function(input, output, session) {
                                 value = "2019-06-01",
                                 weekstart = 1),
                       fileInput("file1",
-                                  label = "File input"),
+                                  label = NULL),
                       fileInput("file2",
-                                  label = "File input"),
+                                  label = NULL),
                       fileInput("file3",
-                                  label = "File input"),
+                                  label = NULL),
+                      fileInput("file4",
+                                label = NULL),
+                      fileInput("file5",
+                                label = NULL),
+                      fileInput("file6",
+                                label = NULL),
                       checkboxGroupInput("terms_in",
                                            label = "Terms IN",
                                            choices = ""),
@@ -109,7 +121,12 @@ server <- function(input, output, session) {
     #######
     #prepare data
     input_files <- reactive({
-        c(input$file1$datapath,input$file2$datapath,input$file3$datapath)
+        c(input$file1$datapath,
+          input$file2$datapath,
+          input$file3$datapath,
+          input$file4$datapath,
+          input$file5$datapath,
+          input$file6$datapath)
         
         #files_sel <- files_sel[!is.null(files_sel)]
         
@@ -121,7 +138,7 @@ server <- function(input, output, session) {
     #as.numeric(unlist(switch(input$radio_unit,1,0.011574074,0.0003650000)))
     #unit_conv_fact <- reactive({ })#m3/d,L/s,GL/a
     df_long <- reactive({df()%>% 
-            pivot_longer(   cols =c(-kper:-time,-file,-index)) %>% 
+            pivot_longer(   cols =c(-kper:-time,-file,-index,-type_incr_cum)) %>% 
             mutate(file2 = str_glue("file {index}")) })
             #pivot_longer(   cols =c(-kper:-time))})
     #this is to filter out terms that only have zero values (e.g. rech_out)
@@ -140,9 +157,10 @@ server <- function(input, output, session) {
     })
     
     df_filt <- reactive({df_long2() %>% 
-        filter(name %in% df_types_sel() ) %>% 
+        filter(name %in% df_types_sel(),
+               type_incr_cum == input$incr_cum) %>% 
         mutate(value = ifelse(name != "PERCENT_DISCREPANCY",
-                              value * as.numeric(input$radio_unit),
+                              value * as.numeric(input$radio_unit)*input$mult,
                               value),
                time_date = as_datetime(input$start_date + duration(totim,"days")))})
 
