@@ -64,8 +64,8 @@ server <- function(input, output, session) {
                                    label = "Muliplier (e.g. cross-sectional models etc)",
                                    value = 1),
                       radioButtons("radio_time_unit", label = "time units",
-                                   choiceNames = c("days","date"),
-                                   choiceValues	= c("days","date"), 
+                                   choiceNames = c("days","date", "SP"),
+                                   choiceValues	= c("days","date","SP"), 
                                    selected = "days"),
                       dateInput(inputId = "start_date",
                                 label = "start time",
@@ -168,9 +168,12 @@ server <- function(input, output, session) {
       if(input$radio_time_unit == "date"){
         df_filt() %>% 
           mutate(time2 = time_date )
-      }else{
+      }else if (input$radio_time_unit == "days"){
         df_filt() %>% 
           mutate(time2 = totim )
+      }else if (input$radio_time_unit == "SP"){
+        df_filt() %>% 
+          mutate(time2 = kper )
       }
      
         

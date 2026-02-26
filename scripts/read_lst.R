@@ -4,15 +4,15 @@ library(lubridate)
 library(plotly)
 
 
-source("flopy_r.R")
+source("scripts/flopy_r.R")
 
 add_res <- F
 replace <- F
 
 
-base_fd <- "D:/Pawel/modelling/EPA_FPR/LY_EPA_FPR_v4/R1/mf/"
-fn_nam <- "mf.lst"
-sims <- c("run fixed rech", "v3_res")
+base_fd <- "D:/Pawel/modelling/EP_GR/LY_EPA_GR_V5/mf/"
+fn_nam <- "mf_out/mf_pred_transp.lst"
+sims <- c("sen_27_R_sc7.7 v3_S200-aircore")
 #sims <- list.dirs(base_fd,full.names = F,recursive = F)
 
 file_lst <- str_glue("{base_fd}{sims}/{fn_nam}")
