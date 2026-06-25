@@ -5,9 +5,15 @@ import pandas as pd
 
 #this function is retained fro backward compatibility. use get_lst_incr_cum_py instead to get both cumulative and incremental
 def get_lst_py(file):
-  mf_list = flopy.utils.MfListBudget(file)
+  try:
+    mf_list = flopy.utils.Mf6ListBudget(file)
+    kstpkper = mf_list.get_kstpkper()
+    if not kstpkper:
+        raise ValueError("No data found as MF6 format")
+  except Exception:
+    mf_list = flopy.utils.MfListBudget(file)
+    kstpkper = mf_list.get_kstpkper()
   
-  kstpkper = mf_list.get_kstpkper()
   kstpkper_df = pd.DataFrame(kstpkper)
   kstpkper_df.columns = ['kstp','kper']
   
@@ -24,9 +30,15 @@ def get_lst_py(file):
   return(incrementaldf)
   
 def get_lst_incr_cum_py(file):
-  mf_list = flopy.utils.MfListBudget(file)
+  try:
+    mf_list = flopy.utils.Mf6ListBudget(file)
+    kstpkper = mf_list.get_kstpkper()
+    if not kstpkper:
+        raise ValueError("No data found as MF6 format")
+  except Exception:
+    mf_list = flopy.utils.MfListBudget(file)
+    kstpkper = mf_list.get_kstpkper()
   
-  kstpkper = mf_list.get_kstpkper()
   kstpkper_df = pd.DataFrame(kstpkper)
   kstpkper_df.columns = ['kstp','kper']
   
@@ -46,7 +58,7 @@ def get_lst_incr_cum_py(file):
   cumulativedf.rename(columns={'index':'time'}, inplace=True)
   cumulativedf["type_incr_cum"] = "cum"
     
-  combineddf = pd.concat([incrementaldf,cumulativedf])
+  combineddf = pd.concat([incrementaldf,cumulativedf], ignore_index=True)
 
   return(combineddf)
   

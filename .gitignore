@@ -3,3 +3,6 @@
 .RData
 .Ruserdata
 RGWchart.Rproj
+test_data/
+scratch/
+__pycache__/
