@@ -34,9 +34,13 @@ COPY scripts/ /srv/shiny-server/scripts/
 # Update the python path in app.R to point to the docker container's flopy_env
 RUN sed -i 's|/home/pawel/miniforge3/envs/flopy_env/bin/python|/opt/flopy_env/bin/python|g' /srv/shiny-server/app.R
 
+# Copy and set up the entrypoint script to pass environment variables
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 # Ensure correct permissions
 RUN chown -R shiny:shiny /srv/shiny-server
 
-# Expose port and run shiny server
+# Expose port and run entrypoint
 EXPOSE 3838
-CMD ["/usr/bin/shiny-server"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
