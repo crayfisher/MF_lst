@@ -17,16 +17,91 @@ library(bslib)
 library(shinymanager)
 source("scripts/flopy_r.R")
 
-# Define UI for application 
+# Define UI for application
 # file size up to 1000MB
 options(shiny.maxRequestSize = 1000*1024^2)
 
+# --- Shared visual identity (keep in sync with ../RGWheads_oct-quad) ---------
+# Both RGW apps use the SAME vapor base + palette + CSS so they are (a) vivid,
+# matching the Crayfisher website's "vapor" theme, and (b) identical to each
+# other.
+CF_PRIMARY   <- "#00bc8c" # teal-green (site h1/h2 + buttons)
+CF_ACCENT    <- "#32fbe2" # neon-teal (hover / highlight)
+CF_SECONDARY <- "#6f42c1" # vapor purple
+CF_BG        <- "#1a0933" # deep purple page background (vapor)
+CF_PANEL     <- "#241046" # card / plot panel
+CF_FG        <- "#ece7f7" # light lavender text
+CF_MUTED     <- "#a99fce" # muted lavender (secondary text)
+app_theme <- bs_theme(
+  bootswatch = "vapor",
+  primary = CF_PRIMARY,
+  secondary = CF_SECONDARY,
+  success = CF_PRIMARY,
+  info = CF_ACCENT,
+  base_font = font_google("Inter"),
+  heading_font = font_google("Outfit"),
+  bg = CF_BG,
+  fg = CF_FG
+)
+
+# Shared CSS (identical to RGWheads) + a few RGWchart-specific extras appended.
+custom_css <- "
+  body { background: radial-gradient(circle at 20% 0%, #2a0f52 0%, #1a0933 55%) !important; }
+  /* bslib's page-sidebar title bar derives its background + text colour from
+     these two CSS vars; vapor sets them to pink bg / dark text. Pin both to the
+     dark palette so the top bar is dark navy with readable teal text. */
+  :root { --bslib-page-sidebar-title-bg: #150726 !important; --bslib-page-sidebar-title-color: #00bc8c !important; }
+  .navbar, .bslib-page-sidebar > .navbar { background-color: #150726 !important; background-image: none !important; color: #00bc8c !important; border-bottom: 1px solid rgba(50,251,226,0.18) !important; box-shadow: none !important; position: relative; }
+  .navbar .bslib-page-title { color: #00bc8c !important; font-weight: 700; }
+  .navbar-brand { color: #00bc8c !important; font-weight: 700 !important; letter-spacing: 0.3px; text-shadow: 0 0 12px rgba(0,188,140,0.45); }
+  /* Back-to-site link pinned to the right of the top bar; explicit bright colour
+     so it's readable at rest (outline-info rendered too dark on the dark bar). */
+  .app-back-btn { position: absolute !important; right: 16px; top: 50%; transform: translateY(-50%); z-index: 5; color: #32fbe2 !important; border-color: #32fbe2 !important; background: rgba(50,251,226,0.08) !important; }
+  .app-back-btn:hover { background: #32fbe2 !important; color: #150726 !important; box-shadow: 0 0 14px rgba(50,251,226,0.5) !important; }
+  h1, h2, h3, h4 { color: #00bc8c; }
+  .card {
+    background: #241046 !important;
+    border: 1px solid rgba(255,255,255,0.08) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 8px 26px rgba(0,0,0,0.4) !important;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  .card:hover { border-color: #32fbe2 !important; box-shadow: 0 14px 30px rgba(50,251,226,0.18) !important; }
+  .card-header { background: rgba(0,0,0,0.25) !important; border-bottom: 1px solid rgba(255,255,255,0.08) !important; color: #00bc8c !important; font-weight: 600 !important; }
+  .sidebar { background: #150726 !important; border-right: 1px solid rgba(50,251,226,0.12) !important; }
+  .accordion-button { background: #241046 !important; color: #ece7f7 !important; }
+  .accordion-button:not(.collapsed) { background: #2d1657 !important; color: #00bc8c !important; box-shadow: inset 3px 0 0 #00bc8c; }
+  .value-box { border-radius: 14px !important; border: 1px solid rgba(255,255,255,0.08) !important; }
+  /* Buttons: pill shape + neon hover glow, matching the website cards. */
+  .btn { border-radius: 30px !important; font-weight: 600 !important; transition: all 0.2s ease; }
+  .btn-primary, .btn-success { background: #00bc8c !important; border: 1px solid #00bc8c !important; color: #04130e !important; }
+  .btn-primary:hover, .btn-success:hover, .btn-info:hover { box-shadow: 0 0 16px rgba(0,188,140,0.55) !important; transform: translateY(-1px); }
+  .btn-info { color: #04130e !important; }
+  .btn-secondary { color: #ece7f7 !important; }
+  /* Outline buttons (e.g. Remove): keep text visible on the dark bg, not only on hover. */
+  .btn-danger { color: #fff !important; }
+  .btn-outline-danger { color: #ff7088 !important; border-color: #ff7088 !important; }
+  .btn-outline-danger:hover { background: #ff7088 !important; color: #1a0933 !important; }
+  .form-control, .form-select, .selectize-input, .selectize-dropdown { background: rgba(0,0,0,0.25) !important; border-color: rgba(255,255,255,0.12) !important; color: #ece7f7 !important; }
+  a { color: #00bc8c; }
+  a:hover { color: #32fbe2; }
+  /* --- RGWchart-specific --- */
+  .accordion-item { background: #241046 !important; border: 1px solid rgba(255,255,255,0.08) !important; border-radius: 10px !important; }
+  .sidebar-right-header { display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.12); padding-bottom: 8px; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #150726; }
+  ::-webkit-scrollbar-thumb { background: #3a2560; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #4a3070; }
+"
+
 ui <- page_sidebar(
-  theme = bs_theme(
-    bootswatch = "darkly",
-    primary = "#0d6efd"
+  # Compile custom CSS into the theme so it reliably lands in <head>.
+  theme = bs_add_rules(app_theme, custom_css),
+  title = tagList(
+    "R GW Chart - MODFLOW budget viewer",
+    tags$a("← crayfisher.com", href = "https://crayfisher.com",
+           class = "btn btn-outline-info btn-sm app-back-btn")
   ),
-  title = "R GW Chart - MODFLOW budget viewer",
   
   # Left Sidebar: Controls & File Uploads
   sidebar = sidebar(
@@ -41,7 +116,7 @@ ui <- page_sidebar(
     uiOutput("loaded_files_list"),
     actionButton("clear_files", "Clear All Files", class = "btn-danger btn-sm w-100", style = "margin-bottom: 20px;"),
     
-    hr(style = "border-color: #3d3d3d;"),
+    hr(style = "border-color: rgba(255,255,255,0.12);"),
               
     radioButtons("incr_cum", "Rate / Cumulative",
                  choices = list("Rate" = "incr", "Cumulative" = "cum"), 
@@ -64,77 +139,6 @@ ui <- page_sidebar(
                  selected = "days")
   ),
   
-  # Custom CSS to make it look even more premium
-  tags$head(
-    tags$style(HTML("
-      .card {
-        border-radius: 12px;
-        border: 1px solid #2d2d2d;
-        background-color: #1e1e1e !important;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
-        margin-bottom: 20px;
-        transition: all 0.2s ease-in-out;
-      }
-      .card:hover {
-        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
-      }
-      .card-header {
-        background-color: #252525 !important;
-        border-bottom: 1px solid #2d2d2d !important;
-        font-weight: 600;
-        color: #ffffff;
-      }
-      .sidebar {
-        background-color: #161616 !important;
-      }
-      .sidebar-right-header {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 15px;
-        border-bottom: 1px solid #3d3d3d;
-        padding-bottom: 8px;
-      }
-      .btn-primary {
-        background-color: #0d6efd;
-        border-color: #0d6efd;
-        border-radius: 6px;
-        font-weight: 500;
-        transition: all 0.2s ease;
-      }
-      .btn-primary:hover {
-        background-color: #0b5ed7;
-        border-color: #0a58ca;
-        transform: translateY(-1px);
-      }
-      /* Custom scrollbars */
-      ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: #1e1e1e;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #3a3a3a;
-        border-radius: 4px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #4a4a4a;
-      }
-      .accordion-button {
-        background-color: #1e1e1e !important;
-        color: #ffffff !important;
-        border: none !important;
-        box-shadow: none !important;
-      }
-      .accordion-item {
-        background-color: #1e1e1e !important;
-        border: 1px solid #2d2d2d !important;
-        border-radius: 8px !important;
-      }
-    "))
-  ),
-  
   # Right Sidebar & Main Content Area
   layout_sidebar(
     border = FALSE,
@@ -155,9 +159,9 @@ ui <- page_sidebar(
       ),
       
       checkboxGroupInput("terms_in", "Terms IN", choices = ""),
-      hr(style = "border-color: #3d3d3d;"),
+      hr(style = "border-color: rgba(255,255,255,0.12);"),
       checkboxGroupInput("terms_out", "Terms OUT", choices = ""),
-      hr(style = "border-color: #3d3d3d;"),
+      hr(style = "border-color: rgba(255,255,255,0.12);"),
       checkboxGroupInput("terms_other", "Terms OTHER", choices = "")
     ),
     
@@ -183,7 +187,7 @@ ui <- page_sidebar(
           "Budget Table & Export",
           icon = icon("table"),
           DT::dataTableOutput("table"),
-          hr(style = "border-color: #2d2d2d; margin-top: 20px; margin-bottom: 20px;"),
+          hr(style = "border-color: rgba(255,255,255,0.12); margin-top: 20px; margin-bottom: 20px;"),
           
           # Clean integrated export block
           p(tags$strong("Export Data Options & Download"), style = "font-size: 1.1rem; margin-bottom: 15px; color: #a0a0a0;"),
@@ -221,13 +225,18 @@ credentials <- data.frame(
   stringsAsFactors = FALSE
 )
 
-ui <- secure_app(ui)
+# --- Login gate (disabled) --------------------------------------------------
+# Login is intentionally disabled to make the app publicly accessible (linked
+# from the Crayfisher website), matching RGWheads. Bot/abuse protection is
+# handled at the edge via Cloudflare. To re-enable the shinymanager gate,
+# uncomment the line below and the matching `secure_server(...)` block.
+# ui <- secure_app(ui)
 
 server <- function(input, output, session) {
-  
-  res_auth <- secure_server(
-    check_credentials = check_credentials(credentials)
-  )
+
+  # res_auth <- secure_server(
+  #   check_credentials = check_credentials(credentials)
+  # )
   
   # Reactive registry of loaded files
   files_registry <- reactiveVal(list())
@@ -236,6 +245,20 @@ server <- function(input, output, session) {
   # Parse and append uploaded files with unique ID generation
   observeEvent(input$files, {
     req(input$files)
+    # Server-side type check: `accept=` is only a client hint, and this app is
+    # public (no login), so reject anything that isn't a listing-file extension
+    # and skip empty files before parsing.
+    allowed_ext <- c("lst", "list", "txt", "out")
+    exts <- tolower(tools::file_ext(input$files$name))
+    bad <- input$files$name[!(exts %in% allowed_ext) |
+                              is.na(input$files$size) | input$files$size <= 0]
+    if (length(bad) > 0) {
+      showNotification(
+        paste0("Rejected (allowed: .lst .list .txt .out): ",
+               paste(bad, collapse = ", ")),
+        type = "error", duration = NULL)
+      req(FALSE)
+    }
     withProgress(message = 'Parsing listing files...', value = 0, {
       n_files <- nrow(input$files)
       new_registry_entries <- list()
@@ -318,9 +341,9 @@ server <- function(input, output, session) {
     lapply(registry, function(f) {
       # Render text inputs and date inputs initialized with defaults
       tags$div(
-        style = "border: 1px solid #3d3d3d; padding: 12px; border-radius: 8px; margin-bottom: 12px; background-color: #222; position: relative;",
+        style = "border: 1px solid rgba(255,255,255,0.12); padding: 12px; border-radius: 8px; margin-bottom: 12px; background-color: #241046; position: relative;",
         
-        p(f$filename, style = "font-weight: bold; font-family: monospace; font-size: 0.85rem; margin-bottom: 8px; color: #0d6efd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 60px;"),
+        p(f$filename, style = "font-weight: bold; font-family: monospace; font-size: 0.85rem; margin-bottom: 8px; color: #00bc8c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 60px;"),
         
         tags$div(
           style = "position: absolute; top: 8px; right: 8px;",
@@ -515,15 +538,24 @@ server <- function(input, output, session) {
 
   # Output Chart
   output$chart <- renderPlotly({
+    # Empty-state placeholder styled to the dark theme (plotly_empty defaults to a
+    # white paper/plot background, which flashed as an ugly white box pre-load).
+    empty_plot <- function(msg) {
+      plotly_empty(type = "scatter", mode = "markers") %>%
+        layout(
+          title = list(text = msg, y = 0.5, font = list(color = "#a99fce")),
+          plot_bgcolor = "#241046",
+          paper_bgcolor = "#241046",
+          font = list(color = "#ece7f7")
+        )
+    }
     registry <- files_registry()
     if (is.null(registry) || length(registry) == 0) {
-      return(plotly_empty(type = "scatter", mode = "markers") %>%
-             layout(title = list(text = "Please upload one or more MODFLOW listing files in the sidebar on the left", y = 0.5)))
+      return(empty_plot("Please upload one or more MODFLOW listing files in the sidebar on the left"))
     }
-    
+
     if (length(df_types_sel()) == 0) {
-      return(plotly_empty(type = "scatter", mode = "markers") %>%
-             layout(title = list(text = "Please select at least one budget term in the sidebar on the right", y = 0.5)))
+      return(empty_plot("Please select at least one budget term in the sidebar on the right"))
     }
     
     req(df_filt2())
@@ -542,24 +574,25 @@ server <- function(input, output, session) {
       p <- p + expand_limits(y = 0)
     }
     
-    # Styled theme to match darkly theme
+    # Styled theme to match the shared Crayfisher (vapor) palette.
     p <- p + labs(x = isolate(input$radio_time_unit), y = "Value", col = "Legend") +
-      theme_minimal() +
+      theme_minimal(base_family = "Inter") +
       theme(
-        plot.background = element_rect(fill = "#1e1e1e", color = NA),
-        panel.background = element_rect(fill = "#1e1e1e", color = NA),
-        text = element_text(color = "#e0e0e0"),
-        axis.text = element_text(color = "#b0b0b0"),
-        panel.grid.major = element_line(color = "#2d2d2d"),
-        panel.grid.minor = element_line(color = "#252525"),
-        legend.background = element_rect(fill = "#1e1e1e", color = NA),
-        legend.text = element_text(color = "#e0e0e0")
+        plot.background = element_rect(fill = "#241046", color = NA),
+        panel.background = element_rect(fill = "#241046", color = NA),
+        text = element_text(color = "#ece7f7"),
+        axis.text = element_text(color = "#a99fce"),
+        panel.grid.major = element_line(color = "#3a2560"),
+        panel.grid.minor = element_line(color = "#2d1657"),
+        legend.background = element_rect(fill = "#241046", color = NA),
+        legend.text = element_text(color = "#ece7f7")
       )
-         
+
     ggplotly(p, dynamicTicks = TRUE) %>%
       layout(
-        plot_bgcolor = "#1e1e1e",
-        paper_bgcolor = "#1e1e1e"
+        plot_bgcolor = "#241046",
+        paper_bgcolor = "#241046",
+        font = list(color = "#ece7f7")
       )
   })
   
