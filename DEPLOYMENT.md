@@ -1,112 +1,147 @@
-# RGWchart - Deployment Guide
+# RGWchart — Deployment Guide (+ RGWheads)
 
-This guide describes how to build, run, and manage the `RGWchart` (MODFLOW water budget viewer) application using Docker.
+How to build, run, and redeploy the `RGWchart` (MODFLOW water-budget viewer)
+with Docker. **§4 is the exact deploy/redeploy command reference for both
+`RGWchart` and `RGWheads`** — the two apps are separate repos, images, and
+containers, so each repo's guide documents both.
 
 ---
 
 ## 1. Prerequisites
-Ensure the target server has the following installed:
+On the target server:
 * **Docker**
 * **Git**
-* A firewall utility (like **UFW**) configured
+* A firewall (e.g. **UFW**) — see §5.
 
 ---
 
-## 2. Server Setup (First Time Only)
+## 2. Architecture (RGWchart)
+`RGWchart` is built on **`rocker/shiny-verse`** + **shiny-server**, with a conda
+`flopy_env` (Python/flopy via reticulate) added for listing-file parsing. The
+Dockerfile copies `app.R` + `scripts/` into `/srv/shiny-server/` and rewrites the
+reticulate Python path to `/opt/flopy_env/bin/python`. The app listens on `3838`.
 
-1. Clone the repository to your server:
-   ```bash
-   git clone <your-repository-url> ~/apps/RGWchart
-   ```
-2. Navigate to the project directory:
-   ```bash
-   cd ~/apps/RGWchart
-   ```
+> RGWheads uses a different base (`mambaorg/micromamba`); see that repo's
+> `DEPLOYMENT.md` for its architecture/demo details. The deploy commands for
+> both apps are in §4 below.
 
 ---
 
-## 3. Build the Docker Image
-Every time you pull updates from the repository, rebuild the Docker image to compile the changes:
+## 3. First-time server setup
 ```bash
+git clone <repo-url> ~/apps/RGWchart        # RGWchart
+git clone <repo-url> ~/apps/RGWheads_oct-quad   # RGWheads (separate repo)
+```
+
+---
+
+## 4. Deploy & redeploy — exact commands (both apps)
+
+The two apps are **separate repos / images / containers**:
+
+| App      | Repo dir (server)            | Image           | Container   | Host→ctr port | App file in image            |
+|----------|------------------------------|-----------------|-------------|---------------|------------------------------|
+| RGWchart | `~/apps/RGWchart`            | `rgw_chart_app` | `rgw_chart` | `3838→3838`   | `/srv/shiny-server/app.R`    |
+| RGWheads | `~/apps/RGWheads_oct-quad`   | `rgw_heads_app` | `rgw_heads` | `3839→3838`   | `/app/app.R`                 |
+
+> If your existing containers use other names (e.g. an old `rgwchart_container`),
+> either substitute them below or adopt these — the redeploy removes the old
+> container anyway. Login is disabled on both apps, so **no password env var is
+> needed** (`RGWCHART_PASSWORD` / `APP_PASSWORD` are obsolete).
+
+### The one rule that bites everyone
+`docker build` makes a **new image**, but a **running container keeps running the
+old image** until you remove and recreate it. So a rebuild alone changes nothing
+on the live site — you must `docker rm -f <name>` then `docker run …` again. Code
+is copied in at build time; there is no live mount.
+
+### A. RGWchart — first deploy
+```bash
+cd ~/apps/RGWchart
+git pull
+docker build -t rgw_chart_app .          # NOTE the image name: rgw_chart_app
+docker run -d --restart unless-stopped --name rgw_chart -p 3838:3838 rgw_chart_app
+docker logs -f rgw_chart                  # Ctrl-C once shiny-server is up / no errors
+```
+
+### B. RGWheads — first deploy
+```bash
+cd ~/apps/RGWheads_oct-quad
+git pull
+# demo/ is gitignored — copy it in BEFORE building (build context, not git,
+# carries it). One-time / only when the demo changes. Run from your LOCAL repo:
+#   rsync -avz demo/ user@server:~/apps/RGWheads_oct-quad/demo/
 docker build -t rgw_heads_app .
+docker run -d --restart unless-stopped --name rgw_heads -p 3839:3838 rgw_heads_app
+docker logs -f rgw_heads
 ```
-*(If you encounter permission issues, prepend the command with `sudo`)*
+
+### C. Redeploy either app after a code change
+Same three steps; the `docker rm -f` is the part that's easy to forget:
+```bash
+# --- RGWchart ---
+cd ~/apps/RGWchart && git pull
+docker build -t rgw_chart_app .
+docker rm -f rgw_chart
+docker run -d --restart unless-stopped --name rgw_chart -p 3838:3838 rgw_chart_app
+
+# --- RGWheads ---
+cd ~/apps/RGWheads_oct-quad && git pull
+docker build -t rgw_heads_app .
+docker rm -f rgw_heads
+docker run -d --restart unless-stopped --name rgw_heads -p 3839:3838 rgw_heads_app
+
+docker image prune -f                     # optional: reclaim dangling old images
+```
+
+### D. Verify the new code is actually live (when it "still looks old")
+```bash
+# 1) Is the running container newer than your rebuild?
+docker ps                                 # check the CONTAINER's CREATED column
+docker images | grep rgw                  # check the IMAGE's CREATED column
+#    Container older than the image -> you skipped `docker rm -f` + run (step C).
+
+# 2) Is the new code inside the running container? (look for a known-new string)
+docker exec rgw_chart grep -c app-back-btn /srv/shiny-server/app.R   # expect >= 1
+docker exec rgw_heads grep -c app-back-btn /app/app.R                # expect >= 1
+#    0 -> the build missed your changes: confirm `git pull` ran in the dir you
+#         built from (`git log --oneline -1`), and you rebuilt that image.
+
+# 3) Correct in the container but old in the browser -> it's a cache:
+#    - hard refresh (Ctrl/Cmd+Shift+R) or an incognito window (Shiny caches JS/CSS)
+#    - if the subdomain is proxied by Cloudflare, purge cache (or enable
+#      Development Mode briefly)
+```
 
 ---
 
-## 4. Run the Container
-Start the container with a custom authentication password and port forwarding:
-
+## 5. Firewall (UFW)
+Only needed if you expose the host ports directly. If a reverse proxy (Caddy) +
+Cloudflare front the apps (recommended), open `443` and keep the app ports local.
 ```bash
-docker run -d \
-  -p 3838:3838 \
-  -e RGWCHART_PASSWORD="your_secure_password" \
-  --restart unless-stopped \
-  --name rgwchart_container \
-  rgw_heads_app
+sudo ufw allow 3838/tcp        # RGWchart
+sudo ufw allow 3839/tcp        # RGWheads
+sudo ufw status
 ```
-
-### Options Breakdown:
-* `-d`: Run container in detached mode (background).
-* `-p 3838:3838`: Maps port `3838` on the server to port `3838` inside the container.
-* `-e RGWCHART_PASSWORD="..."`: Configures the login password for the application. If not provided, it defaults to `"password"`.
-* `--restart unless-stopped`: Ensures the container restarts automatically if the server reboots.
-* `--name rgwchart_container`: Assigns a readable name to the container.
 
 ---
 
-## 5. Configure Firewall (UFW)
-To access the application externally, you must allow incoming traffic on port `3838`.
+## 6. Accessing the apps
+* RGWchart: `http://<server-ip>:3838`
+* RGWheads: `http://<server-ip>:3839`
 
-1. Allow the port:
-   ```bash
-   sudo ufw allow 3838/tcp
-   ```
-2. Reload/verify the firewall status:
-   ```bash
-   sudo ufw status
-   ```
+Login is disabled (public access). Behind a proxy the clean URLs are
+`https://lst.crayfisher.com` (chart) and `https://heads.crayfisher.com` (heads) —
+see the RGWheads `DEPLOYMENT.md` §6 for the Caddy + Cloudflare setup.
 
 ---
 
-## 6. Accessing the Application
-Open a web browser and go to:
-```text
-http://<your-server-ip-or-domain>:3838
-```
-
-* **Username:** `viewer`
-* **Password:** The password configured via the `RGWCHART_PASSWORD` environment variable.
-
----
-
-## 7. Container Administration & Troubleshooting
-
-### Check Container Status
-Verify that the container is active and healthy:
+## 7. Container admin & troubleshooting
 ```bash
-docker ps
+docker ps                       # status
+docker logs rgw_chart           # logs (use rgw_heads for the other app)
+docker stop rgw_chart           # stop
+docker start rgw_chart          # start
 ```
-
-### View Application Logs
-Check runtime outputs or debug crashes:
-```bash
-docker logs rgwchart_container
-```
-
-### Stop/Start the App
-* **Stop:**
-  ```bash
-  docker stop rgwchart_container
-  ```
-* **Start:**
-  ```bash
-  docker start rgwchart_container
-  ```
-
-### Recreate / Update the Password
-If you need to change your password or update the container:
-```bash
-docker rm -f rgwchart_container
-docker run -d -p 3838:3838 -e RGWCHART_PASSWORD="your_new_password" --restart unless-stopped --name rgwchart_container rgw_heads_app
-```
+To pick up code changes, use the **redeploy** in §4C (stop/start alone does NOT
+load new code — the old image is still inside the container).
