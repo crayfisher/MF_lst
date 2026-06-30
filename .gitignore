@@ -7,3 +7,14 @@ test_data/
 scratch/
 __pycache__/
 .Rprofile
+
+# Local AI-assistant instruction/scratch files - never publish (may hold personal
+# env paths / private notes).
+CLAUDE.md
+ANTIGRAVITY.md
+Antigravity.md
+GEMINI.md
+AGENTS.md
+.cursorrules
+.aider*
+.claude/

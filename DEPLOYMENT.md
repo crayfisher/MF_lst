@@ -29,9 +29,14 @@ reticulate Python path to `/opt/flopy_env/bin/python`. The app listens on `3838`
 
 ## 3. First-time server setup
 ```bash
-git clone <repo-url> ~/apps/RGWchart        # RGWchart
-git clone <repo-url> ~/apps/RGWheads_oct-quad   # RGWheads (separate repo)
+git clone git@github.com:crayfisher/MF_lst.git   ~/apps/RGWchart          # RGWchart
+git clone git@github.com:crayfisher/MF_heads.git ~/apps/RGWheads_oct-quad # RGWheads
 ```
+
+> Repos were renamed 2026-06-30: RGWchart = `crayfisher/MF_lst`,
+> RGWheads = `crayfisher/MF_heads`. The local server directory names are just a
+> convention — keep your existing `~/apps/...` paths if already cloned (only the
+> remote URL changed; `git remote set-url origin <new>` if needed).
 
 ---
 
@@ -93,6 +98,16 @@ docker run -d --restart unless-stopped --name rgw_heads -p 3839:3838 rgw_heads_a
 
 docker image prune -f                     # optional: reclaim dangling old images
 ```
+
+### C2. One-command redeploy (`redeploy.sh`)
+Each repo ships a `redeploy.sh` that runs steps A–C (git pull → build →
+`docker rm -f` → run → verify) for that app, so you don't have to remember the
+flags or the `rm -f`:
+```bash
+cd ~/apps/RGWchart        && ./redeploy.sh   # RGWchart
+cd ~/apps/RGWheads_oct-quad && ./redeploy.sh # RGWheads (ensure demo/ is present)
+```
+It's safe for a first deploy too (`docker rm -f` no-ops if the container is absent).
 
 ### D. Verify the new code is actually live (when it "still looks old")
 ```bash
