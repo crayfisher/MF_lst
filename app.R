@@ -21,92 +21,30 @@ source("scripts/flopy_r.R")
 # file size up to 1000MB
 options(shiny.maxRequestSize = 1000*1024^2)
 
-# --- Shared visual identity (keep in sync with ../RGWheads_oct-quad) ---------
-# Both RGW apps use the SAME vapor base + palette + CSS so they are (a) vivid,
-# matching the Crayfisher website's "vapor" theme, and (b) identical to each
-# other.
-CF_PRIMARY   <- "#00bc8c" # teal-green (site h1/h2 + buttons)
-CF_ACCENT    <- "#32fbe2" # neon-teal (hover / highlight)
-CF_SECONDARY <- "#6f42c1" # vapor purple
-CF_BG        <- "#1a0933" # deep purple page background (vapor)
-CF_PANEL     <- "#241046" # card / plot panel
-CF_FG        <- "#ece7f7" # light lavender text
-CF_MUTED     <- "#a99fce" # muted lavender (secondary text)
-app_theme <- bs_theme(
-  bootswatch = "vapor",
-  primary = CF_PRIMARY,
-  secondary = CF_SECONDARY,
-  success = CF_PRIMARY,
-  info = CF_ACCENT,
-  base_font = font_google("Inter"),
-  heading_font = font_google("Outfit"),
-  bg = CF_BG,
-  fg = CF_FG
-)
+# --- Shared visual identity -------------------------------------------------
+# Palette (CF_*), bslib `app_theme`, and the base `cf_custom_css` live in a
+# single sourced module so all Crayfisher apps stay in sync automatically.
+# NB: it lives in lib/, not R/ — Shiny auto-sources R/*.R *before* the library()
+# calls above, which would break bs_theme(). See lib/cf_theme.R header.
+source("lib/cf_theme.R")
 
-# Shared CSS (identical to RGWheads) + a few RGWchart-specific extras appended.
-custom_css <- "
-  body { background: radial-gradient(circle at 20% 0%, #2a0f52 0%, #1a0933 55%) !important; }
-  /* bslib's page-sidebar title bar derives its background + text colour from
-     these two CSS vars; vapor sets them to pink bg / dark text. Pin both to the
-     dark palette so the top bar is dark navy with readable teal text. */
-  :root { --bslib-page-sidebar-title-bg: #150726 !important; --bslib-page-sidebar-title-color: #00bc8c !important; }
-  .navbar, .bslib-page-sidebar > .navbar { background-color: #150726 !important; background-image: none !important; color: #00bc8c !important; border-bottom: 1px solid rgba(50,251,226,0.18) !important; box-shadow: none !important; position: relative; }
-  .navbar .bslib-page-title { color: #00bc8c !important; font-weight: 700; }
-  .navbar-brand { color: #00bc8c !important; font-weight: 700 !important; letter-spacing: 0.3px; text-shadow: 0 0 12px rgba(0,188,140,0.45); }
-  /* Keep the title text + BETA pill together at the left (the page-title flex
-     container would otherwise push a loose badge to the far right). */
-  .app-title-wrap { display: inline-flex; align-items: center; }
-  /* Large BETA pill next to the app title (matches the website apps badge). */
-  .app-beta-badge { display: inline-block; margin-left: 12px; padding: 3px 13px; font-size: 0.78rem; font-weight: 800; letter-spacing: 1.5px; color: #1a0933; background: #32fbe2; border-radius: 30px; vertical-align: middle; text-shadow: none; box-shadow: 0 0 14px rgba(50,251,226,0.6); }
-  /* Header link buttons (GitHub / report bug / back-to-site) grouped at the right
-     of the top bar; explicit bright colour so they read at rest (outline-info
-     rendered too dark on the dark bar). */
-  .app-header-links { position: absolute !important; right: 16px; top: 50%; transform: translateY(-50%); z-index: 5; display: flex; gap: 8px; align-items: center; }
-  .app-header-links .btn { color: #32fbe2 !important; border-color: #32fbe2 !important; background: rgba(50,251,226,0.08) !important; }
-  .app-header-links .btn:hover { background: #32fbe2 !important; color: #150726 !important; box-shadow: 0 0 14px rgba(50,251,226,0.5) !important; }
-  h1, h2, h3, h4 { color: #00bc8c; }
-  .card {
-    background: #241046 !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
-    border-radius: 14px !important;
-    box-shadow: 0 8px 26px rgba(0,0,0,0.4) !important;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
-  }
-  .card:hover { border-color: #32fbe2 !important; box-shadow: 0 14px 30px rgba(50,251,226,0.18) !important; }
-  .card-header { background: rgba(0,0,0,0.25) !important; border-bottom: 1px solid rgba(255,255,255,0.08) !important; color: #00bc8c !important; font-weight: 600 !important; }
-  .sidebar { background: #150726 !important; border-right: 1px solid rgba(50,251,226,0.12) !important; }
-  .accordion-button { background: #241046 !important; color: #ece7f7 !important; }
-  .accordion-button:not(.collapsed) { background: #2d1657 !important; color: #00bc8c !important; box-shadow: inset 3px 0 0 #00bc8c; }
-  .value-box { border-radius: 14px !important; border: 1px solid rgba(255,255,255,0.08) !important; }
-  /* Buttons: pill shape + neon hover glow, matching the website cards. */
-  .btn { border-radius: 30px !important; font-weight: 600 !important; transition: all 0.2s ease; }
-  .btn-primary, .btn-success { background: #00bc8c !important; border: 1px solid #00bc8c !important; color: #04130e !important; }
-  .btn-primary:hover, .btn-success:hover, .btn-info:hover { box-shadow: 0 0 16px rgba(0,188,140,0.55) !important; transform: translateY(-1px); }
-  .btn-info { color: #04130e !important; }
-  .btn-secondary { color: #ece7f7 !important; }
-  /* Outline-info buttons (About panel: Source code / Report a bug): bright teal
-     so they're clearly readable on the dark panel, not just on hover. */
-  .btn-outline-info { color: #32fbe2 !important; border-color: #32fbe2 !important; }
-  .btn-outline-info:hover { background: #32fbe2 !important; color: #150726 !important; box-shadow: 0 0 14px rgba(50,251,226,0.5) !important; }
-  /* Outline buttons (e.g. Remove): keep text visible on the dark bg, not only on hover. */
-  .btn-danger { color: #fff !important; }
-  .btn-outline-danger { color: #ff7088 !important; border-color: #ff7088 !important; }
-  .btn-outline-danger:hover { background: #ff7088 !important; color: #1a0933 !important; }
-  .form-control, .form-select, .selectize-input, .selectize-dropdown { background: rgba(0,0,0,0.25) !important; border-color: rgba(255,255,255,0.12) !important; color: #ece7f7 !important; }
-  a { color: #00bc8c; }
-  a:hover { color: #32fbe2; }
-  /* --- RGWchart-specific --- */
+# Shared base CSS (from R/cf_theme.R) + a few RGWchart-specific extras appended.
+custom_css <- paste0(cf_custom_css, "  /* --- RGWchart-specific --- */
   .accordion-item { background: #241046 !important; border: 1px solid rgba(255,255,255,0.08) !important; border-radius: 10px !important; }
   .sidebar-right-header { display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.12); padding-bottom: 8px; }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: #150726; }
   ::-webkit-scrollbar-thumb { background: #3a2560; border-radius: 4px; }
   ::-webkit-scrollbar-thumb:hover { background: #4a3070; }
-"
+")
 
 # GitHub repository for this app (source + bug reports).
 APP_REPO <- "https://github.com/crayfisher/MF_lst"
+
+# Bundled demo listing files live here (relative to the app dir, which is the
+# working directory under both shiny-server and runApp). Any .lst/.list/.txt/.out
+# dropped in is auto-discovered by the demo loader.
+DEMO_DIR <- "demo"
 
 ui <- page_sidebar(
   # Compile custom CSS into the theme so it reliably lands in <head>.
@@ -177,7 +115,10 @@ ui <- page_sidebar(
               
     uiOutput("loaded_files_list"),
     actionButton("clear_files", "Clear All Files", class = "btn-danger btn-sm w-100", style = "margin-bottom: 20px;"),
-    
+
+    # Bundled demo / test data - loads instantly (no upload needed).
+    uiOutput("demo_ui"),
+
     hr(style = "border-color: rgba(255,255,255,0.12);"),
               
     radioButtons("incr_cum", "Rate / Cumulative",
@@ -297,6 +238,56 @@ server <- function(input, output, session) {
   files_registry <- reactiveVal(list())
   file_counter <- reactiveVal(0)
   
+  # Parse a set of listing files (by path) and append them to the registry.
+  # Shared by the upload handler and the demo loader.
+  add_parsed_files <- function(paths, names) {
+    withProgress(message = 'Parsing listing files...', value = 0, {
+      n_files <- length(paths)
+      new_registry_entries <- list()
+      counter <- file_counter()
+
+      for (i in seq_len(n_files)) {
+        orig_name <- names[i]
+
+        counter <- counter + 1
+        file_id <- paste0("file_", counter)
+
+        incProgress(1 / n_files, detail = orig_name)
+
+        parsed_df <- tryCatch({
+          get_lst(paths[i])
+        }, error = function(e) {
+          showNotification(paste("Error reading file:", orig_name, "\nDetail:", e$message),
+                           type = "error", duration = NULL)
+          NULL
+        })
+
+        if (!is.null(parsed_df)) {
+          # Default alias; if a file with this name is already loaded, suffix a count.
+          existing_count <- sum(purrr::map_chr(files_registry(), ~ .x$filename) == orig_name)
+          default_alias <- if (existing_count > 0) {
+            paste0(orig_name, " (", existing_count + 1, ")")
+          } else {
+            orig_name
+          }
+
+          new_registry_entries[[length(new_registry_entries) + 1]] <- list(
+            id = file_id,
+            filename = orig_name,
+            data = parsed_df,
+            default_alias = default_alias
+          )
+        }
+      }
+
+      file_counter(counter)
+
+      if (length(new_registry_entries) > 0) {
+        files_registry(append(files_registry(), new_registry_entries))
+      }
+    })
+  }
+
   # Parse and append uploaded files with unique ID generation
   observeEvent(input$files, {
     req(input$files)
@@ -314,55 +305,44 @@ server <- function(input, output, session) {
         type = "error", duration = NULL)
       req(FALSE)
     }
-    withProgress(message = 'Parsing listing files...', value = 0, {
-      n_files <- nrow(input$files)
-      new_registry_entries <- list()
-      counter <- file_counter()
-      
-      for (i in seq_len(n_files)) {
-        path <- input$files$datapath[i]
-        orig_name <- input$files$name[i]
-        
-        counter <- counter + 1
-        file_id <- paste0("file_", counter)
-        
-        incProgress(1 / n_files, detail = orig_name)
-        
-        parsed_df <- tryCatch({
-          get_lst(path)
-        }, error = function(e) {
-          showNotification(paste("Error reading file:", orig_name, "\nDetail:", e$message), 
-                           type = "error", duration = NULL)
-          NULL
-        })
-        
-        if (!is.null(parsed_df)) {
-          # Formulate a default alias. Check if we already have files with this name and append a count
-          existing_count <- sum(purrr::map_chr(files_registry(), ~ .x$filename) == orig_name)
-          default_alias <- if (existing_count > 0) {
-            paste0(orig_name, " (", existing_count + 1, ")")
-          } else {
-            orig_name
-          }
-          
-          new_registry_entries[[length(new_registry_entries) + 1]] <- list(
-            id = file_id,
-            filename = orig_name,
-            data = parsed_df,
-            default_alias = default_alias
-          )
-        }
-      }
-      
-      file_counter(counter)
-      
-      if (length(new_registry_entries) > 0) {
-        current_registry <- files_registry()
-        files_registry(append(current_registry, new_registry_entries))
-      }
-    })
+    add_parsed_files(input$files$datapath, input$files$name)
   })
-  
+
+  # --- Bundled demo / test data ---------------------------------------------
+  # Auto-discover any listing file in DEMO_DIR; load it through the same parser
+  # as an upload (no upload, instant). Handy for demonstrations.
+  demo_files <- reactive({
+    if (!dir.exists(DEMO_DIR)) return(character(0))
+    list.files(DEMO_DIR, pattern = "\\.(lst|list|txt|out)$", ignore.case = TRUE)
+  })
+
+  output$demo_ui <- renderUI({
+    files <- demo_files()
+    if (length(files) == 0) return(NULL)
+    tagList(
+      div(strong(icon("flask"), " Demo / Test Data"),
+          style = "font-size: 0.9rem; margin-bottom: 6px; margin-top: 4px;"),
+      selectInput("demo_choice", NULL, choices = files, selected = files,
+                  multiple = TRUE, width = "100%"),
+      actionButton("load_demo", "Load Demo", icon = icon("play"),
+                   class = "btn-info btn-sm w-100"),
+      div(style = "font-size: 0.78rem; color: #a99fce; margin-top: 6px; margin-bottom: 8px;",
+          "Sample MODFLOW listing files (HPM model) - load instantly, no upload needed.")
+    )
+  })
+
+  observeEvent(input$load_demo, {
+    req(input$demo_choice)
+    sel <- input$demo_choice
+    paths <- file.path(DEMO_DIR, sel)
+    ok <- file.exists(paths)
+    if (!any(ok)) {
+      showNotification("Demo files not found on the server.", type = "error")
+      return(invisible(NULL))
+    }
+    add_parsed_files(paths[ok], sel[ok])
+  })
+
   # Clear all files action
   observeEvent(input$clear_files, {
     files_registry(list())
