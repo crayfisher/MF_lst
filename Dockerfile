@@ -30,6 +30,8 @@ RUN install2.r -e \
 # Copy the app files into the Shiny Server directory
 COPY app.R /srv/shiny-server/
 COPY scripts/ /srv/shiny-server/scripts/
+# Bundled demo listing files (loaded instantly by the in-app demo selector).
+COPY demo/ /srv/shiny-server/demo/
 
 # Update the python path in app.R to point to the docker container's flopy_env
 RUN sed -i 's|/home/pawel/miniforge3/envs/flopy_env/bin/python|/opt/flopy_env/bin/python|g' /srv/shiny-server/app.R

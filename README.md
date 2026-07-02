@@ -15,6 +15,9 @@ modelling tools. Live: **https://lst.crayfisher.com**
 
 ## Features
 
+- **Bundled demo data** — a demo selector loads sample HPM listing files instantly
+  (no upload needed); any `.lst`/`.list`/`.txt`/`.out` dropped into `demo/` is
+  auto-discovered
 - Upload one or more listing files and compare runs
 - Water-budget plots: **rate** or **cumulative**, with unit conversion
   (m³/d, L/s, GL/a) and a custom multiplier (e.g. cross-section)
