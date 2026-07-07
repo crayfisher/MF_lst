@@ -30,6 +30,8 @@ RUN install2.r -e \
 # Copy the app files into the Shiny Server directory
 COPY app.R /srv/shiny-server/
 COPY scripts/ /srv/shiny-server/scripts/
+# Shared visual identity (sourced by app.R as lib/cf_theme.R).
+COPY lib/ /srv/shiny-server/lib/
 # Bundled demo listing files (loaded instantly by the in-app demo selector).
 COPY demo/ /srv/shiny-server/demo/
 
