@@ -37,7 +37,7 @@ bundled `flopy_env` conda environment.
 
 ```bash
 docker build -t rgw_chart_app .
-docker run -d --restart unless-stopped --name rgw_chart -p 3838:3838 rgw_chart_app
+docker run -d --restart unless-stopped --name rgw_chart -p 127.0.0.1:3838:3838 rgw_chart_app
 ```
 
 See `DEPLOYMENT.md` for the full deploy/redeploy reference (covers both this app

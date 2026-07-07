@@ -44,15 +44,17 @@ git clone git@github.com:crayfisher/MF_heads.git ~/apps/RGWheads_oct-quad # RGWh
 
 The two apps are **separate repos / images / containers**:
 
-| App      | Repo dir (server)            | Image           | Container   | Host→ctr port | App file in image            |
-|----------|------------------------------|-----------------|-------------|---------------|------------------------------|
-| RGWchart | `~/apps/RGWchart`            | `rgw_chart_app` | `rgw_chart` | `3838→3838`   | `/srv/shiny-server/app.R`    |
-| RGWheads | `~/apps/RGWheads_oct-quad`   | `rgw_heads_app` | `rgw_heads` | `3839→3838`   | `/app/app.R`                 |
+| App      | Repo dir (server)            | Image           | Container   | Host→ctr port          | App file in image            |
+|----------|------------------------------|-----------------|-------------|------------------------|------------------------------|
+| RGWchart | `~/apps/RGWchart`            | `rgw_chart_app` | `rgw_chart` | `127.0.0.1:3838→3838`  | `/srv/shiny-server/app.R`    |
+| RGWheads | `~/apps/RGWheads_oct-quad`   | `rgw_heads_app` | `rgw_heads` | `127.0.0.1:3839→3838`  | `/app/app.R`                 |
 
 > If your existing containers use other names (e.g. an old `rgwchart_container`),
 > either substitute them below or adopt these — the redeploy removes the old
-> container anyway. Login is disabled on both apps, so **no password env var is
-> needed** (`RGWCHART_PASSWORD` / `APP_PASSWORD` are obsolete).
+> container anyway. Login is disabled on both apps, so there is no in-app auth —
+> **binding both host ports to `127.0.0.1`** (never `0.0.0.0`) is what keeps them
+> from being reachable directly; only Caddy on the same host can reach them
+> (`RGWCHART_PASSWORD` / `APP_PASSWORD` are obsolete either way).
 
 ### The one rule that bites everyone
 `docker build` makes a **new image**, but a **running container keeps running the
@@ -65,7 +67,7 @@ is copied in at build time; there is no live mount.
 cd ~/apps/RGWchart
 git pull
 docker build -t rgw_chart_app .          # NOTE the image name: rgw_chart_app
-docker run -d --restart unless-stopped --name rgw_chart -p 3838:3838 rgw_chart_app
+docker run -d --restart unless-stopped --name rgw_chart -p 127.0.0.1:3838:3838 rgw_chart_app
 docker logs -f rgw_chart                  # Ctrl-C once shiny-server is up / no errors
 ```
 
@@ -77,7 +79,7 @@ git pull
 # carries it). One-time / only when the demo changes. Run from your LOCAL repo:
 #   rsync -avz demo/ user@server:~/apps/RGWheads_oct-quad/demo/
 docker build -t rgw_heads_app .
-docker run -d --restart unless-stopped --name rgw_heads -p 3839:3838 rgw_heads_app
+docker run -d --restart unless-stopped --name rgw_heads -p 127.0.0.1:3839:3838 rgw_heads_app
 docker logs -f rgw_heads
 ```
 
@@ -88,13 +90,13 @@ Same three steps; the `docker rm -f` is the part that's easy to forget:
 cd ~/apps/RGWchart && git pull
 docker build -t rgw_chart_app .
 docker rm -f rgw_chart
-docker run -d --restart unless-stopped --name rgw_chart -p 3838:3838 rgw_chart_app
+docker run -d --restart unless-stopped --name rgw_chart -p 127.0.0.1:3838:3838 rgw_chart_app
 
 # --- RGWheads ---
 cd ~/apps/RGWheads_oct-quad && git pull
 docker build -t rgw_heads_app .
 docker rm -f rgw_heads
-docker run -d --restart unless-stopped --name rgw_heads -p 3839:3838 rgw_heads_app
+docker run -d --restart unless-stopped --name rgw_heads -p 127.0.0.1:3839:3838 rgw_heads_app
 
 docker image prune -f                     # optional: reclaim dangling old images
 ```
@@ -131,21 +133,27 @@ docker exec rgw_heads grep -c app-back-btn /app/app.R                # expect >=
 ---
 
 ## 5. Firewall (UFW)
-Only needed if you expose the host ports directly. If a reverse proxy (Caddy) +
-Cloudflare front the apps (recommended), open `443` and keep the app ports local.
+Not needed for the app ports themselves — both containers are published to
+`127.0.0.1` only (§4), so `3838`/`3839` are never exposed on the host's public
+interface regardless of firewall rules. Open only what a reverse proxy (Caddy) +
+Cloudflare actually need:
 ```bash
-sudo ufw allow 3838/tcp        # RGWchart
-sudo ufw allow 3839/tcp        # RGWheads
+sudo ufw allow 443/tcp
+sudo ufw allow 80/tcp          # for ACME HTTP-01 / redirect to 443
 sudo ufw status
 ```
+If you ever *do* need to expose `3838`/`3839` directly (e.g. debugging without
+Caddy), drop the `127.0.0.1:` prefix from the `-p` flag for that one run **and**
+open the matching UFW rule — remember to revert both afterwards.
 
 ---
 
 ## 6. Accessing the apps
-* RGWchart: `http://<server-ip>:3838`
-* RGWheads: `http://<server-ip>:3839`
-
-Login is disabled (public access). Behind a proxy the clean URLs are
+Both containers are bound to `127.0.0.1`, so `http://<server-ip>:3838` /
+`:3839` are **not** reachable from outside the server — only Caddy, running on
+the same host, can reach them via `localhost:3838`/`localhost:3839`. Login is
+disabled (public access), so this is the only thing standing between the app
+and the open internet — the public URLs are the proxied hostnames:
 `https://lst.crayfisher.com` (chart) and `https://heads.crayfisher.com` (heads) —
 see the RGWheads `DEPLOYMENT.md` §6 for the Caddy + Cloudflare setup.
 
